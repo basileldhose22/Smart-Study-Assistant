@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Study Assistant</title>
+  
+  <!-- Font Awesome for modern icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  
+  <!-- Tailwind Config Customization -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdfa',
+              100: '#ccfbf1',
+              500: '#14b8a6',
+              600: '#0d9488',
+              900: '#134e4a',
+            },
+            dark: {
+              main: '#1a1b1e',
+              surface: '#25262b',
+              border: '#373a40'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- PDF.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+  </script>
+
+  <!-- Marked.js for Markdown parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .dark ::-webkit-scrollbar-thumb { background: #475569; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    
+    .tab-btn.active {
+      border-bottom-width: 2px;
+      border-color: #14b8a6;
+      color: #14b8a6;
+    }
+    
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.6);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .dark .glass-panel {
+      background: rgba(37, 38, 43, 0.7);
+    }
+    
+    /* Loading dot animation */
+    .typing-dot {
+      animation: typing 1.4s infinite ease-in-out both;
+    }
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes typing {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 transition-colors duration-200 dark:bg-dark-main dark:text-gray-200 h-screen overflow-hidden flex flex-col">
+  
+  <!-- Enhanced Header layout -->
+  <header class="h-16 border-b border-gray-200 dark:border-dark-border glass-panel flex items-center justify-between px-6 z-10 flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-500 to-brand-600 flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+        <i class="fa-solid fa-graduation-cap"></i>
+      </div>
+      <h1 class="font-semibold text-lg tracking-tight">Smart Study Assistant</h1>
+    </div>
+    
+    <div class="flex items-center gap-4">
+      <div class="relative group hidden sm:block">
+        <input type="password" id="gemini-api-key" placeholder="Enter Gemini API Key..." class="bg-white dark:bg-dark-surface border border-gray-200 dark:border-dark-border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-48 transition-all focus:w-64">
+        <div class="absolute right-2 top-2 text-xs text-brand-500 cursor-pointer hover:text-brand-600 hidden" id="save-api-key-btn"><i class="fa-solid fa-check"></i></div>
+      </div>
+      <button id="theme-toggle" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-gray-200 dark:hover:bg-dark-surface transition-colors focus:ring-2 focus:ring-brand-500 outline-none">
+        <i class="fa-solid fa-moon text-gray-500 dark:hidden text-lg"></i>
+        <i class="fa-solid fa-sun hidden dark:block text-yellow-400 text-lg"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Layout Container: split for desktop, stacked for mobile -->
+  <main class="flex-1 flex flex-col md:flex-row overflow-hidden relative">
+    
+    <!-- LEFT PANEL: Chat & Upload (Takes ~40% width on Desktop) -->
+    <section class="w-full md:w-5/12 border-r border-gray-200 dark:border-dark-border flex flex-col h-full bg-white/50 dark:bg-dark-surface/30">
+      
+      <!-- Chat Message Area -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-6 scroll-smooth">
+        
+        <!-- Welcome Message -->
+        <div class="flex gap-4">
+          <div class="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-brand-100 dark:bg-brand-900/30 flex items-center justify-center flex-shrink-0 text-brand-600">
+            <i class="fa-solid fa-robot"></i>
+          </div>
+          <div class="flex-1 space-y-2">
+            <p class="font-medium text-sm text-gray-900 dark:text-gray-100">Study Assistant</p>
+            <div class="text-[15px] leading-relaxed text-gray-700 dark:text-gray-300">
+              Hello! I'm your Smart Study Assistant. Before we begin, please tell me your age and what kind of notes you want to focus on.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Bottom Actions: Upload + Input -->
+      <div class="p-4 bg-white dark:bg-dark-surface border-t border-gray-200 dark:border-dark-border">
+        
+        <!-- PDF Upload Area (above chat input) -->
+        <div id="upload-zone" class="block mb-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl relative overflow-hidden group transition-all hover:bg-gray-50 dark:hover:bg-dark-main">
+          <input type="file" id="pdf-upload" class="sr-only" disabled>
+          
+          <label id="upload-content" for="pdf-upload" class="flex flex-col items-center p-4 cursor-pointer w-full h-full text-center opacity-50">
+            <div class="w-10 h-10 rounded-full bg-brand-50 dark:bg-brand-900/20 text-brand-500 flex items-center justify-center mx-auto mb-2 transition-transform" id="upload-icon-container">
+              <i class="fa-regular fa-file text-xl"></i>
+            </div>
+            <p id="upload-title-text" class="text-sm font-medium mb-1">Awaiting Preferences...</p>
+            <p id="upload-subtitle-text" class="text-xs text-gray-500 dark:text-gray-400">Please answer in the chat first</p>
+          </label>
+
+          <!-- Upload Progress UI (Hidden by default) -->
+          <div id="upload-progress" class="hidden absolute inset-0 bg-white dark:bg-dark-surface flex flex-col items-center justify-center p-4">
+            <div class="w-full max-w-xs space-y-2 text-left">
+              <div class="flex justify-between text-xs font-semibold">
+                <span id="upload-filename" class="truncate max-w-[200px]">document.pdf</span>
+                <span id="upload-percent">0%</span>
+              </div>
+              <div class="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div id="upload-bar" class="h-full bg-brand-500 w-0 transition-all duration-300 ease-out"></div>
+              </div>
+              <p class="text-xs text-center text-gray-500" id="upload-status">Analyzing document...</p>
+            </div>
+          </div>
+          
+          <!-- Upload Success / File Active (Hidden by default) -->
+          <div id="upload-success" class="hidden absolute inset-0 bg-white dark:bg-dark-surface flex items-center justify-between p-4 border border-brand-200 dark:border-brand-900/50 rounded-xl">
+             <div class="flex items-center gap-3 overflow-hidden">
+               <div class="p-2 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-lg shrink-0">
+                 <i class="fa-solid fa-check"></i>
+               </div>
+               <div class="overflow-hidden">
+                 <p id="active-filename" class="text-sm font-semibold truncate">document.pdf</p>
+                 <p class="text-xs text-green-600 dark:text-green-500">Ready</p>
+               </div>
+             </div>
+             <button id="btn-remove-pdf" type="button" class="p-2 text-gray-400 hover:text-red-500 transition-colors relative z-10" title="Remove Document">
+               <i class="fa-solid fa-trash-can"></i>
+             </button>
+          </div>
+        </div>
+
+        <!-- Chat Input Form -->
+        <form id="chat-form" class="relative flex items-end gap-2 bg-gray-50 dark:bg-dark-main rounded-2xl border border-gray-200 dark:border-dark-border p-2 focus-within:ring-2 focus-within:ring-brand-500/50 focus-within:border-brand-500 transition-all">
+          <textarea id="chat-input" rows="1" placeholder="Type your preferences here..." class="flex-1 bg-transparent resize-none outline-none py-2 px-3 text-[15px] max-h-32 min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
+          <button type="button" id="btn-mic" class="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 flex items-center justify-center transition-all flex-shrink-0" title="Voice Input (Speech to Text)">
+            <i class="fa-solid fa-microphone text-sm"></i>
+          </button>
+          <button type="submit" id="btn-send" class="w-10 h-10 rounded-xl bg-brand-500 hover:bg-brand-600 text-white flex items-center justify-center transition-colors shadow-md shadow-brand-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+            <i class="fa-solid fa-paper-plane text-sm translate-y-[1px] -translate-x-[1px]"></i>
+          </button>
+        </form>
+        <p class="text-center text-[10px] text-gray-400 mt-2">AI can make mistakes. Consider verifying important information.</p>
+      </div>
+    </section>
+    
+    <!-- RIGHT PANEL: Analysis Dashboard (Takes ~60% width on Desktop) -->
+    <section class="w-full md:w-7/12 flex flex-col h-full bg-gray-50 dark:bg-[#1f2023]">
+      
+      <!-- Empty State (Shown before upload) -->
+      <div id="dashboard-empty" class="flex-1 flex flex-col items-center justify-center p-8 text-center">
+        <div class="w-24 h-24 mb-6 text-gray-300 dark:text-gray-700 opacity-50">
+          <svg class="w-full h-full" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-300 mb-2">Analysis Dashboard</h2>
+        <p class="text-gray-500 dark:text-gray-400 max-w-sm">Upload a document to automatically generate summaries, study plans, notes, and interactive quizzes.</p>
+      </div>
+
+      <!-- Dashboard Content (Hidden before upload) -->
+      <div id="dashboard-content" class="hidden flex-col h-full">
+        <!-- Tabs Header -->
+        <div class="flex overflow-x-auto border-b border-gray-200 dark:border-dark-border px-2 flex-shrink-0 hide-scrollbar pt-2">
+          <button class="tab-btn active px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-document">
+            <i class="fa-solid fa-file-lines mr-2 text-red-500"></i>Document
+          </button>
+          <button class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-summary">
+            <i class="fa-solid fa-book-open mr-2 text-brand-500"></i>Summary
+          </button>
+          <button class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-plan">
+            <i class="fa-solid fa-calendar-check mr-2 text-blue-500"></i>Study Plan
+          </button>
+          <button class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-notes">
+            <i class="fa-solid fa-pen-to-square mr-2 text-purple-500"></i><span id="tab-notes-label">Beginner Notes</span>
+          </button>
+          <button class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-quiz">
+            <i class="fa-solid fa-clipboard-question mr-2 text-orange-500"></i>Quiz
+          </button>
+          <button class="tab-btn px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 whitespace-nowrap transition-colors" data-target="tab-recs">
+            <i class="fa-solid fa-lightbulb mr-2 text-yellow-500"></i>Recommendations
+          </button>
+          
+          <div class="flex-1"></div>
+          <!-- Optional Action buttons -->
+          <div class="flex items-center gap-2 pr-2">
+            <button class="p-2 text-gray-400 hover:text-brand-500 transition-colors tooltip" title="Export as PDF">
+               <i class="fa-solid fa-download"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Tabs Panels Area -->
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50 dark:bg-dark-main scroll-smooth">
+          
+          <!-- Document Tab -->
+          <div id="tab-document" class="tab-pane h-full w-full">
+            <div class="bg-white dark:bg-dark-surface rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border h-full min-h-[600px] w-full overflow-hidden flex flex-col">
+              <iframe id="pdf-viewer-frame" class="w-full flex-1 bg-gray-100 dark:bg-dark-main" src=""></iframe>
+            </div>
+          </div>
+
+          <!-- Summary Tab -->
+          <div id="tab-summary" class="tab-pane hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border">
+              <h3 class="text-xl font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-book-open text-brand-500"></i> Executive Summary</h3>
+              <div class="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-[15px]" id="content-summary">
+                <!-- Generating via JS -->
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+               <div class="bg-brand-50 dark:bg-brand-900/10 p-5 rounded-2xl border border-brand-100 dark:border-brand-900/30">
+                 <h4 class="font-semibold text-brand-700 dark:text-brand-400 mb-1">Key Concepts</h4>
+                 <p class="text-2xl font-bold text-gray-900 dark:text-white" id="stat-concepts">12</p>
+               </div>
+               <div class="bg-blue-50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                 <h4 class="font-semibold text-blue-700 dark:text-blue-400 mb-1">Est. Read Time</h4>
+                 <p class="text-2xl font-bold text-gray-900 dark:text-white" id="stat-time">45 min</p>
+               </div>
+               <div class="bg-purple-50 dark:bg-purple-900/10 p-5 rounded-2xl border border-purple-100 dark:border-purple-900/30">
+                 <h4 class="font-semibold text-purple-700 dark:text-purple-400 mb-1">Difficulty</h4>
+                 <p class="text-2xl font-bold text-gray-900 dark:text-white" id="stat-diff">Intermediate</p>
+               </div>
+            </div>
+          </div>
+
+          <!-- Study Plan Tab -->
+          <div id="tab-plan" class="tab-pane hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border">
+               <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><i class="fa-solid fa-calendar-check text-blue-500"></i> Structured Study Plan</h3>
+               
+               <div class="relative pl-6 border-l-2 border-gray-200 dark:border-dark-border space-y-8" id="content-plan">
+                 <!-- Generated by JS -->
+               </div>
+            </div>
+          </div>
+
+          <!-- Notes Tab -->
+          <div id="tab-notes" class="tab-pane hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border">
+              <div class="flex items-center justify-between mb-6">
+                <h3 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-purple-500"></i> <span id="pane-notes-title">Beginner Notes</span></h3>
+                <span class="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs font-semibold rounded-full" id="pane-notes-badge">Simplified</span>
+              </div>
+              
+              <div class="prose dark:prose-invert max-w-none text-gray-700 dark:text-gray-300 text-[15px]" id="content-notes">
+                <!-- Generated by JS -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Quiz Tab -->
+          <div id="tab-quiz" class="tab-pane hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border relative">
+              <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 pb-4 border-b border-gray-100 dark:border-dark-border gap-4">
+                <h3 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-clipboard-question text-orange-500"></i> Knowledge Check</h3>
+                <div id="quiz-score-container" class="hidden flex items-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-4 py-2 rounded-lg border border-green-200 dark:border-green-900/30 font-bold">
+                  Score: <span id="quiz-score-text">0/0</span>
+                </div>
+              </div>
+              
+              <div class="space-y-8" id="content-quiz">
+                <!-- Generated by JS -->
+              </div>
+              <div class="mt-8 pt-6 border-t border-gray-100 dark:border-dark-border flex justify-end">
+                <button id="btn-submit-quiz" class="hidden px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-medium rounded-xl transition-colors shadow-sm shadow-brand-500/20">Submit Quiz</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recommendations Tab -->
+          <div id="tab-recs" class="tab-pane hidden space-y-6 max-w-3xl mx-auto">
+            <div class="bg-white dark:bg-dark-surface p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-dark-border">
+              <h3 class="text-xl font-bold mb-6 flex items-center gap-2"><i class="fa-solid fa-lightbulb text-yellow-500"></i> Next Steps & Recommendations</h3>
+              
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="content-recs">
+                <!-- Generated by JS -->
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+      
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
